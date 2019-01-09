@@ -130,6 +130,7 @@ class Trainer():
                 self.optimizer.step()
                 self.total_loss += loss.item()
                 if batch_idx % 10 == 0:
+                    print(f'> {self.generate()}')
                     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     self.epoch, batch_idx * BATCH_SIZE, len(self.dataloader.dataset),
                     100. * batch_idx / len(self.dataloader), loss.item()))
