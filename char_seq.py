@@ -80,7 +80,7 @@ class Dataset():
 
     def __init__(self):
         with open('data_small.txt', 'r') as content_file:
-            self.content = [list(word) for word in content_file.read().lower().strip('\n').replace('\n', ' ').split(' ') if len(list(word)) > 0 ]
+            self.content = [list(word) for word in content_file.read().lower().strip('\n').replace('\n', ' ') if len(list(word)) > 0 ]
 
     def training_batches(self):
         for word in self.content:
@@ -113,7 +113,9 @@ class Trainer():
 
 
 t = Trainer(1000)
-t.train()
+# t.train()
+for i in t.dataset.training_batches():
+    print(i)
 
 
 
