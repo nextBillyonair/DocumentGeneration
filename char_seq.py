@@ -1,19 +1,19 @@
 import torch
-import random
 from torch.nn import Embedding, Linear, Module, LSTM, NLLLoss
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam
 from torch.nn.functional import relu, log_softmax, softmax
 from numpy.random import choice
 import numpy as np
+import sys
 
 SEQ_LEN = 100
 BATCH_SIZE = 128
-HIDDEN_SIZE = 48
-DATASET = 'data_medium.txt'
-EPOCHS = 100
+HIDDEN_SIZE = 64
+DATASET = 'data_small_processed.txt'
+EPOCHS = 50
 LR = 1e-2
-GEN_LEN = 30
+GEN_LEN = 125
 
 torch.manual_seed(0)
 probability_distribution = np.array([0.08167, 0.01492, 0.02782, 0.04253, 0.12702,
@@ -33,8 +33,9 @@ class Model(Module):
         self.linear = Linear(HIDDEN_SIZE, out_size)
 
     def forward(self, input):
+        hidden = self.random_hidden(input.size(0))
         embed = self.character_embedding(input)
-        step, _ = self.lstm(embed)
+        step, _ = self.lstm(embed, hidden)
         step = log_softmax(self.linear(step), dim=2)
         return step
 
@@ -43,6 +44,12 @@ class Model(Module):
         step, hidden = self.lstm(embed, hidden)
         step = softmax(self.linear(step), dim=2)
         return step, hidden
+
+    def random_hidden(self, batch_size):
+        hidden = torch.normal(mean=torch.zeros((1, batch_size, HIDDEN_SIZE)), std=1.)
+        cell = torch.normal(mean=torch.zeros((1, batch_size, HIDDEN_SIZE)), std=1.)
+        return (hidden, cell)
+
 
 
 class Characters():
@@ -71,7 +78,7 @@ class CharacterDataset(Dataset):
 
     def __init__(self):
         with open(DATASET, 'r') as content_file:
-            self.content = [list(word) for line in content_file for word in line.strip().lower()]
+            self.content = [list(word) for line in content_file for word in line.lower()]
 
         dataset = []
         self.characters = Characters()
@@ -85,14 +92,6 @@ class CharacterDataset(Dataset):
         return len(self.characters)
 
     def __getitem__(self, index):
-        """
-        Args:
-            index (int): Index
-
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
-
         data = self.dataset[index:index + SEQ_LEN]
         return data
 
@@ -130,25 +129,25 @@ class Trainer():
                 self.optimizer.step()
                 self.total_loss += loss.item()
                 if batch_idx % 10 == 0:
-                    print(f'> {self.generate()}')
+                    print(f'> {self.generate()}', file=sys.stderr)
                     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     self.epoch, batch_idx * BATCH_SIZE, len(self.dataloader.dataset),
-                    100. * batch_idx / len(self.dataloader), loss.item()))
+                    100. * batch_idx / len(self.dataloader), loss.item()), file=sys.stderr)
 
             if self.epoch % 10 == 0:
-                print(f'> {self.generate()}')
+                print(f'> {self.generate()}', file=sys.stderr)
 
-            print('====> Train set loss: {:.4f}'.format(self.total_loss / len(self.dataloader)))
+            print('====> Train set loss: {:.4f}'.format(self.total_loss / len(self.dataloader)), file=sys.stderr)
 
     def sample_letter(self):
         draw = choice(letters, 1, p=probability_distribution)[0]
         return self.dataset.characters.add_char(draw)
 
-    def generate(self):
+    def generate(self, length=GEN_LEN):
         last_token = torch.tensor([[self.sample_letter()]], dtype=torch.long)
         sequence = [self.dataset.characters[last_token.item()]]
-        hidden = None
-        for _ in range(GEN_LEN):
+        hidden = self.model.random_hidden(last_token.size(0))
+        for _ in range(length):
             output, hidden = self.model.generate(last_token, hidden)
             _, last_token = output.topk(1)
             last_token = last_token.squeeze(0)
@@ -161,4 +160,7 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     t = Trainer(EPOCHS)
     t.train()
-    t.generate()
+    # for _ in range(26):
+    #     print(t.generate())
+    # print('\n***\n')
+    print(t.generate(10000))
